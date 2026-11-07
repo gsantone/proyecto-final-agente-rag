@@ -1,0 +1,1673 @@
+{
+  "name": "Proyecto Final - Agente RAG Pádel Sur Club",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "595b3638-9b90-4662-8055-b0e0dcb839f9",
+      "name": "Cargar base de conocimiento",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        48,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Documentos oficiales del club en Google Drive (carpeta 'Base de conocimiento')\nreturn [{\"json\": {\"doc_id\": \"1wiN86s-0zYVnmUDej_zXtPj8XuClt_ek7biMHKYygMg\", \"nombre\": \"Reglamento de uso de canchas\"}}, {\"json\": {\"doc_id\": \"1KpQj4-bB4TlzFkBXNHpMNdIBx5zM_MFP5lVaA-MZGaI\", \"nombre\": \"Precios y políticas comerciales\"}}, {\"json\": {\"doc_id\": \"1x9tAY4U64vPU8PPzI_TgeEeNFJjEzMqpOk44HKOauV8\", \"nombre\": \"Preguntas frecuentes\"}}];"
+      },
+      "id": "56cb0684-fa1a-488d-8005-042800192ada",
+      "name": "Lista de documentos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.doc_id }}"
+        },
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "text/plain"
+            }
+          }
+        }
+      },
+      "id": "142b824f-a2db-47a7-8466-8e20f0047c92",
+      "name": "Descargar documento (Drive)",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        480,
+        272
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "3SioE68p5HTw8NDM",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "tableName": {
+          "__rl": true,
+          "mode": "id",
+          "value": "documents"
+        },
+        "options": {
+          "queryName": "match_documents"
+        }
+      },
+      "id": "8f493fbc-19f3-4351-a46e-5be69f56273e",
+      "name": "Guardar en Supabase",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.1,
+      "position": [
+        752,
+        272
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "X9quIV9fhjnIV0OO",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "ec9353e3-6ec3-4302-9df6-b13897065e78",
+      "name": "Embeddings Gemini (ingesta)",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        672,
+        464
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "fuente",
+                "value": "={{ $('Lista de documentos').item.json.nombre }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "f3923251-2db6-46ce-8f94-403a3c5cc707",
+      "name": "Cargar texto",
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1,
+      "position": [
+        848,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "chunkSize": 800,
+        "chunkOverlap": 100,
+        "options": {}
+      },
+      "id": "6aad52e8-c159-4d68-bdac-015e6230641a",
+      "name": "Dividir en fragmentos",
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        928,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "padel-rag",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "17f53950-95b4-4c00-846b-e2ad94380f6d",
+      "name": "Webhook WhatsApp",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        48,
+        960
+      ],
+      "webhookId": "bc62b62f-8217-4f63-b156-09c7c9d3752d"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6006aeac-bf70-46f9-a473-d55594e40ea1",
+              "name": "from",
+              "type": "string",
+              "value": "={{ $json.body.from ?? $json.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from ?? '' }}"
+            },
+            {
+              "id": "be1ed587-f768-46e0-b7aa-b3227e5e8cf0",
+              "name": "texto",
+              "type": "string",
+              "value": "={{ ($json.body.text?.body ?? $json.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.text?.body ?? '').trim() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7b21f961-30d7-4a15-a21c-9820d74a9622",
+      "name": "Normalizar mensaje",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        272,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "337ff08a-4893-4a3d-a76a-76d94b87e7e2",
+              "leftValue": "={{ $json.from }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "49d371be-b8c1-4ac7-8973-ba1ae90c1112",
+              "leftValue": "={{ $json.texto }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4e835ae6-5375-4519-9b8a-9d0c6a99986a",
+      "name": "¿Mensaje válido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ error: 'Mensaje inválido: faltan los campos from o text.body' }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "48ef6060-2593-4c44-9c2a-a11ec6707e09",
+      "name": "Responder error de entrada",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        656,
+        1344
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.texto }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=ROL\nSos \"Pato\", el asistente de WhatsApp de Pádel Sur Club (club ficticio). Atendés a clientes que quieren reservar una cancha o tienen dudas sobre el club.\n\nFECHA Y HORA ACTUAL\n{{ $now.setZone('America/Argentina/Buenos_Aires').setLocale('es').toFormat(\"cccc dd/MM/yyyy HH:mm\") }} (hora Argentina). Usala para interpretar \"hoy\", \"mañana\" o \"el sábado\".\n\nALCANCE: QUÉ PODÉS HACER\n1. Responder preguntas sobre el club (horarios, precios, reglamento, pagos, cancelaciones, instalaciones).\n2. Consultar turnos libres y dejar una PRE-RESERVA.\n3. Derivar al staff lo que no podés resolver.\n\nHERRAMIENTAS\n- Buscar_en_reglamento: busca en los documentos oficiales del club (reglamento, precios y políticas, preguntas frecuentes). Usala SIEMPRE antes de responder cualquier pregunta sobre el club. Respondé solo con lo que diga el resultado.\n- Consultar_agenda: devuelve los turnos LIBRES de una fecha (formato AAAA-MM-DD). Usala SIEMPRE antes de ofrecer o confirmar un horario. Nunca digas que hay lugar sin consultarla.\n\nCÓMO TOMAR UNA RESERVA\n1. Pedí los datos que falten: día, horario y nombre de quien reserva. Si no dice cancha, preguntá si prefiere techada o descubierta.\n2. Consultá la agenda y ofrecé hasta 3 opciones libres cercanas a lo pedido.\n3. Cuando el cliente elija un turno libre y tengas el nombre, devolvé accion PRE_RESERVA con todos los datos de la reserva (fecha AAAA-MM-DD, hora_inicio HH:MM, cancha exactamente como figura en la agenda, por ejemplo \"Cancha 1\", y el precio de la agenda). Aclarale que queda PRE-RESERVADA hasta que el staff la confirme por este chat.\n\nCUÁNDO DERIVAR AL STAFF (accion DERIVAR)\n- El cliente pide hablar con una persona.\n- Reclamos, problemas de cobro, reembolsos o pedidos de excepción a las políticas.\n- Clases, torneos, eventos, cumpleaños o turnos fijos (los gestiona el staff, aunque el reglamento los mencione).\n- La herramienta Buscar_en_reglamento no devuelve la respuesta, o alguna herramienta falla.\nEn esos casos respondé: \"Te paso con alguien del staff, en breve te escriben por acá\" y completá motivo_derivacion en pocas palabras.\n\nAMBIGÜEDAD Y CASOS FUERA DE ALCANCE\n- Si el mensaje es ambiguo (por ejemplo \"quiero para el finde\"), hacé UNA sola pregunta para aclarar. No supongas fecha, hora ni cancha.\n- Si el mensaje no tiene nada que ver con el club, decí amablemente que solo podés ayudar con reservas y consultas de Pádel Sur Club (accion RESPONDER).\n- Si no entendés el mensaje, pedí que lo repitan con otras palabras.\n\nLÍMITES (lo que NO hacés)\n- No inventes precios, horarios, políticas ni disponibilidad.\n- No confirmes reservas como definitivas ni cobres.\n- No pidas datos de tarjeta, claves ni DNI.\n- No prometas descuentos, reembolsos ni excepciones.\n\nTONO (canal WhatsApp)\nEspañol rioplatense, cercano y amable, tratando de \"vos\". Mensajes de 3 a 4 líneas como máximo, sin markdown ni listas largas. Como mucho 1 emoji.\n\nFORMATO DE SALIDA\nRespondé siempre con el JSON del formato indicado:\n- respuesta: el mensaje para el cliente.\n- accion: exactamente RESPONDER, PRE_RESERVA o DERIVAR.\n  RESPONDER = respondiste una consulta o te falta un dato.\n  PRE_RESERVA = el cliente eligió un turno libre y tenés su nombre.\n  DERIVAR = se pasa al staff.\n- motivo_derivacion: solo si accion es DERIVAR; si no, \"\".\n- reserva: solo con datos si accion es PRE_RESERVA; si no, campos vacíos y precio 0.\n",
+          "maxIterations": 6
+        }
+      },
+      "id": "cde592a6-77a4-4770-b0b5-721a2f1fd1be",
+      "name": "AI Agent (Pato)",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        752,
+        944
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "0c0150b3-adca-4716-8fd0-f8fbb85ace1c",
+      "name": "Gemini 2.5 Flash",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        496,
+        1200
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Normalizar mensaje').item.json.from }}",
+        "contextWindowLength": 10
+      },
+      "id": "2cf3fc5f-e3b0-4ae2-9f5b-9c06cd95274b",
+      "name": "Memoria por número",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        704,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolName": "Buscar_en_reglamento",
+        "toolDescription": "Busca en los documentos oficiales de Pádel Sur Club (reglamento, precios y políticas comerciales, preguntas frecuentes). Usala para cualquier pregunta sobre el club.",
+        "tableName": {
+          "__rl": true,
+          "mode": "id",
+          "value": "documents"
+        },
+        "options": {
+          "queryName": "match_documents"
+        }
+      },
+      "id": "b06054ba-db9e-4568-a2f5-696fc0d34145",
+      "name": "Buscar_en_reglamento",
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreSupabase",
+      "typeVersion": 1.1,
+      "position": [
+        848,
+        1200
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "X9quIV9fhjnIV0OO",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "6688c14c-8d8a-46a5-8c1e-69c5ef498883",
+      "name": "Embeddings Gemini (consulta)",
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        848,
+        1392
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CFCAu0oaUrN8rMQk",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Devuelve los turnos LIBRES del club para una fecha (fecha, hora_inicio, cancha, tipo, precio). Entrada: fecha en formato AAAA-MM-DD.",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1dYjuARrweFqH4z6uxp4xbXamatvEqXwy6YtPiBU0xbw"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Agenda"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "fecha",
+              "lookupValue": "={{ $fromAI('fecha', 'Fecha a consultar en formato AAAA-MM-DD', 'string') }}"
+            },
+            {
+              "lookupColumn": "estado",
+              "lookupValue": "libre"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b57d23f7-9c1b-41fa-8a01-aebf0dbdf4e8",
+      "name": "Consultar_agenda",
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.5,
+      "position": [
+        1008,
+        1200
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "LlaaYhFlTjmAXF4u",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"respuesta\": \"Texto para el cliente\",\n  \"accion\": \"PRE_RESERVA\",\n  \"motivo_derivacion\": \"\",\n  \"reserva\": {\n    \"nombre\": \"Martín\",\n    \"fecha\": \"2026-11-08\",\n    \"hora_inicio\": \"20:00\",\n    \"cancha\": \"Cancha 1\",\n    \"precio\": 44000\n  }\n}"
+      },
+      "id": "a42a7f84-03c1-4be8-b674-d6fbf521cee0",
+      "name": "Formato de salida",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1152,
+        1200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "9c6f4c29-9963-4045-94f1-499e24182274",
+              "leftValue": "={{ $json.output?.respuesta ?? '' }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "78be2120-bb00-4ee6-8c3b-955e46260a87",
+              "leftValue": "={{ ['RESPONDER','PRE_RESERVA','DERIVAR'].includes($json.output?.accion) }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4de4b0a-57a6-4dc9-9630-9f77a6172792",
+      "name": "¿Respuesta válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1104,
+        944
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e3c616ef-57e1-4458-a0de-fcc58ac237c5",
+              "name": "from",
+              "type": "string",
+              "value": "={{ $('Normalizar mensaje').item.json.from }}"
+            },
+            {
+              "id": "af6748fc-e3f9-4ce1-a38b-5db450b295e1",
+              "name": "respuesta",
+              "type": "string",
+              "value": "Disculpá, en este momento no puedo responderte. Te paso con alguien del staff, en breve te escriben por acá."
+            },
+            {
+              "id": "695f4f0d-f087-4345-9bef-99ac66854b4b",
+              "name": "accion",
+              "type": "string",
+              "value": "DERIVAR"
+            },
+            {
+              "id": "2789bff5-f80c-4ec5-be2e-15c7bede62cc",
+              "name": "motivo",
+              "type": "string",
+              "value": "={{ 'Error técnico: ' + ($json.error?.message ?? $json.error ?? 'respuesta nula o inválida del agente') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2fdb32e3-c8f0-4d24-8390-573fb72ef5dc",
+      "name": "Fallback (error o respuesta nula)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1344,
+        1232
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "bf7b5cd4-5f0e-4241-ab35-e532d15fed1c",
+                    "leftValue": "={{ $json.output.accion }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "RESPONDER"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "RESPONDER"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "4d081110-8a7c-4b9b-bf44-cfa33a91fab7",
+                    "leftValue": "={{ $json.output.accion }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "PRE_RESERVA"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "PRE_RESERVA"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "id": "24e8d6ad-da25-4ad8-99c0-070b56905bbb",
+                    "leftValue": "={{ $json.output.accion }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "DERIVAR"
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "DERIVAR"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b8174b07-4e1f-483d-832f-06e2ea847ebf",
+      "name": "Acción del agente",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1344,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1dYjuARrweFqH4z6uxp4xbXamatvEqXwy6YtPiBU0xbw"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Agenda"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "fecha",
+              "lookupValue": "={{ $json.output.reserva.fecha }}"
+            },
+            {
+              "lookupColumn": "hora_inicio",
+              "lookupValue": "={{ $json.output.reserva.hora_inicio }}"
+            },
+            {
+              "lookupColumn": "cancha",
+              "lookupValue": "={{ $json.output.reserva.cancha }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c45bb1e6-a332-4ff8-81e3-1d3869705c8e",
+      "name": "Verificar turno en agenda",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1584,
+        912
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "LlaaYhFlTjmAXF4u",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "9ca978cd-a4e3-42fd-af05-320a42da2c6b",
+              "leftValue": "={{ $json.estado }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "libre"
+            },
+            {
+              "id": "1ee3bd67-8b92-4bd0-a811-251e4fd53c97",
+              "leftValue": "={{ $('AI Agent (Pato)').item.json.output.reserva.nombre }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "9d6d91cc-bd1d-40ee-ac9c-3118d900988c",
+              "leftValue": "={{ $('AI Agent (Pato)').item.json.output.reserva.fecha >= $now.setZone('America/Argentina/Buenos_Aires').toFormat('yyyy-MM-dd') }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "de0a2daa-5131-435c-bf88-08cd4a946b77",
+      "name": "¿Turno libre y datos completos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1808,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1dYjuARrweFqH4z6uxp4xbXamatvEqXwy6YtPiBU0xbw"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Agenda"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.row_number }}",
+            "estado": "pre-reservado"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "dia",
+              "displayName": "dia",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hora_inicio",
+              "displayName": "hora_inicio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cancha",
+              "displayName": "cancha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo",
+              "displayName": "tipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "precio",
+              "displayName": "precio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8595335c-f4cc-4bb6-984d-8da527cbfe7a",
+      "name": "Marcar turno pre-reservado",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2032,
+        800
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "LlaaYhFlTjmAXF4u",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1dYjuARrweFqH4z6uxp4xbXamatvEqXwy6YtPiBU0xbw"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Reservas"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha_registro": "={{ $now.setZone('America/Argentina/Buenos_Aires').toFormat('yyyy-MM-dd HH:mm') }}",
+            "telefono": "={{ $('Normalizar mensaje').item.json.from }}",
+            "nombre": "={{ $('AI Agent (Pato)').item.json.output.reserva.nombre }}",
+            "fecha": "={{ $('AI Agent (Pato)').item.json.output.reserva.fecha }}",
+            "hora_inicio": "={{ $('AI Agent (Pato)').item.json.output.reserva.hora_inicio }}",
+            "cancha": "={{ $('AI Agent (Pato)').item.json.output.reserva.cancha }}",
+            "precio": "={{ $('AI Agent (Pato)').item.json.output.reserva.precio }}",
+            "estado": "PRE-RESERVADA"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "fecha_registro",
+              "displayName": "fecha_registro",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nombre",
+              "displayName": "nombre",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fecha",
+              "displayName": "fecha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hora_inicio",
+              "displayName": "hora_inicio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cancha",
+              "displayName": "cancha",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "precio",
+              "displayName": "precio",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "25870857-50e1-4930-90ef-9411cb84ff13",
+      "name": "Registrar reserva",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2240,
+        800
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "LlaaYhFlTjmAXF4u",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5bafc1c6-08b2-4ab1-97d2-c28121f421e7",
+              "name": "from",
+              "type": "string",
+              "value": "={{ $('Normalizar mensaje').item.json.from }}"
+            },
+            {
+              "id": "3902875a-24f3-4fcb-ae61-16ceee4bd8ae",
+              "name": "respuesta",
+              "type": "string",
+              "value": "={{ $('AI Agent (Pato)').item.json.output.respuesta }}"
+            },
+            {
+              "id": "e556ebd5-71e7-4f32-b956-28b0cb2e3045",
+              "name": "accion",
+              "type": "string",
+              "value": "PRE_RESERVA"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f3ae1c4a-b6a5-4ad7-a6ed-24c0d682b489",
+      "name": "Respuesta reserva",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2464,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8c19b2dd-4680-4fda-8c31-7e28aed04461",
+              "name": "from",
+              "type": "string",
+              "value": "={{ $('Normalizar mensaje').item.json.from }}"
+            },
+            {
+              "id": "88531907-9f57-4899-9a20-243d3833d2f4",
+              "name": "respuesta",
+              "type": "string",
+              "value": "Uy, ese turno ya no está disponible o falta algún dato. ¿Querés que te pase otros horarios libres para ese día?"
+            },
+            {
+              "id": "b8183f03-ee96-4cd5-b887-9d56a0a293d5",
+              "name": "accion",
+              "type": "string",
+              "value": "RESPONDER"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a438b2c6-62b2-4372-8a59-b82e3e6a72ea",
+      "name": "Turno no disponible",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2032,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4b261089-401e-4773-9701-c10f67249676",
+              "name": "from",
+              "type": "string",
+              "value": "={{ $('Normalizar mensaje').item.json.from }}"
+            },
+            {
+              "id": "40af02a8-acc9-4305-8cb5-e5a73431fee2",
+              "name": "respuesta",
+              "type": "string",
+              "value": "={{ $json.output.respuesta }}"
+            },
+            {
+              "id": "564f88a1-8c84-4456-b0be-8e1463a8be46",
+              "name": "accion",
+              "type": "string",
+              "value": "DERIVAR"
+            },
+            {
+              "id": "98362dfe-379a-4064-bb8a-425612fa0853",
+              "name": "motivo",
+              "type": "string",
+              "value": "={{ $json.output.motivo_derivacion || 'Pedido del cliente' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7457e816-b6c3-4f7f-bd35-16c61663e8d0",
+      "name": "Preparar derivación",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1584,
+        1104
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "1dYjuARrweFqH4z6uxp4xbXamatvEqXwy6YtPiBU0xbw"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Derivaciones"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha_registro": "={{ $now.setZone('America/Argentina/Buenos_Aires').toFormat('yyyy-MM-dd HH:mm') }}",
+            "telefono": "={{ $json.from }}",
+            "mensaje_cliente": "={{ $('Normalizar mensaje').item.json.texto }}",
+            "motivo": "={{ $json.motivo }}",
+            "estado": "PENDIENTE"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "fecha_registro",
+              "displayName": "fecha_registro",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "mensaje_cliente",
+              "displayName": "mensaje_cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "64f14b0d-ce5f-4173-b06b-43f0625b673a",
+      "name": "Registrar derivación",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1808,
+        1168
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "LlaaYhFlTjmAXF4u",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "52d5f822-f6a2-477c-859e-2211c327aadd",
+              "name": "from",
+              "type": "string",
+              "value": "={{ $('Registrar derivación').item.json.telefono }}"
+            },
+            {
+              "id": "413ea335-7840-465c-b029-c561594eb67e",
+              "name": "respuesta",
+              "type": "string",
+              "value": "={{ $('Preparar derivación').isExecuted ? $('Preparar derivación').item.json.respuesta : $('Fallback (error o respuesta nula)').item.json.respuesta }}"
+            },
+            {
+              "id": "9f8d2e88-bb30-4a25-83ae-3f5f44502ce3",
+              "name": "accion",
+              "type": "string",
+              "value": "DERIVAR"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "05e7b407-d905-40b8-a895-88985ed99bb8",
+      "name": "Respuesta derivación",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2032,
+        1168
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ad6f099e-17b4-4cc9-8782-b807b87348f2",
+              "name": "from",
+              "type": "string",
+              "value": "={{ $('Normalizar mensaje').item.json.from }}"
+            },
+            {
+              "id": "0e777726-e60a-4a6d-9766-0887ecdb9fa4",
+              "name": "respuesta",
+              "type": "string",
+              "value": "={{ $json.output.respuesta }}"
+            },
+            {
+              "id": "1d4ea63c-308d-4691-aa7d-7b051cdc5c82",
+              "name": "accion",
+              "type": "string",
+              "value": "RESPONDER"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4e50f15d-0975-468d-b6f9-e568bf6844f0",
+      "name": "Respuesta directa",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1584,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: $json.from, type: 'text', text: { body: $json.respuesta }, accion: $json.accion }) }}",
+        "options": {}
+      },
+      "id": "2f73d1a3-d040-4543-990e-da625b9b7c5e",
+      "name": "Responder (formato WhatsApp API)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2720,
+        960
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "2ce90f8f-6a47-4eb7-bf00-fe087e82dde1",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        48,
+        1664
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "gabrielsantone@gmail.com",
+        "subject": "=Falla en el asistente de Pádel Sur Club: {{ $json.execution.lastNodeExecuted }}",
+        "emailType": "text",
+        "message": "=Falló el workflow {{ $json.workflow.name }}.\nNodo: {{ $json.execution.lastNodeExecuted }}\nError: {{ $json.execution.error.message }}\nEjecución: {{ $json.execution.url }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "2c521739-5276-4a3f-b735-a6cb5d1e038c",
+      "name": "Avisar falla al administrador",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        304,
+        1664
+      ],
+      "webhookId": "8431aed7-fc3b-47c4-980a-719339ef1850",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "zdil58jYyBGtC1NJ",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "## 1. Ingesta RAG (se corre una vez, o cuando cambian los documentos)\nLee los 3 documentos oficiales del club desde **Google Drive** (fuente 1), los divide en fragmentos de 800 caracteres, genera embeddings con **gemini-embedding-001** y los guarda en **Supabase (pgvector)**.",
+        "height": 620,
+        "width": 1080,
+        "color": 5
+      },
+      "id": "973e6b33-fdd3-4755-a604-5a178b7c02cd",
+      "name": "Nota ingesta",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2. Atención por WhatsApp\n**Webhook** (fuente 2) → validación de entrada → **AI Agent** con memoria por número, RAG (Supabase) y agenda en **Google Sheets** (fuente 3) → Structured Output Parser → **Switch** según la decisión del agente (RESPONDER / PRE_RESERVA / DERIVAR) → salida en Sheets + respuesta en formato WhatsApp Cloud API.\n**Errores:** reintento del agente + salida de error → fallback; If de respuesta nula/inválida; verificación del turno antes de escribir en la agenda.",
+        "height": 732,
+        "width": 2840,
+        "color": 7
+      },
+      "id": "1a937a75-e5b2-4d68-be9f-ba015720e029",
+      "name": "Nota atención",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3. Errores globales\nSi el workflow falla entero, el **Error Trigger** avisa por Gmail. Configurar en *Settings → Error workflow* este mismo workflow.",
+        "height": 280,
+        "width": 560,
+        "color": 3
+      },
+      "id": "7787fb03-6978-4d9f-ae0a-85d8c31e0e56",
+      "name": "Nota errores",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        1568
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Cargar base de conocimiento": {
+      "main": [
+        [
+          {
+            "node": "Lista de documentos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lista de documentos": {
+      "main": [
+        [
+          {
+            "node": "Descargar documento (Drive)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar documento (Drive)": {
+      "main": [
+        [
+          {
+            "node": "Guardar en Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Gemini (ingesta)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Guardar en Supabase",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cargar texto": {
+      "ai_document": [
+        [
+          {
+            "node": "Guardar en Supabase",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dividir en fragmentos": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Cargar texto",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Normalizar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar mensaje": {
+      "main": [
+        [
+          {
+            "node": "¿Mensaje válido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Mensaje válido?": {
+      "main": [
+        [
+          {
+            "node": "AI Agent (Pato)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder error de entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent (Pato)": {
+      "main": [
+        [
+          {
+            "node": "¿Respuesta válida?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback (error o respuesta nula)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini 2.5 Flash": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent (Pato)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Memoria por número": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent (Pato)",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar_en_reglamento": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent (Pato)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Gemini (consulta)": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Buscar_en_reglamento",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar_agenda": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent (Pato)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formato de salida": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent (Pato)",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Respuesta válida?": {
+      "main": [
+        [
+          {
+            "node": "Acción del agente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fallback (error o respuesta nula)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fallback (error o respuesta nula)": {
+      "main": [
+        [
+          {
+            "node": "Registrar derivación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acción del agente": {
+      "main": [
+        [
+          {
+            "node": "Respuesta directa",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Verificar turno en agenda",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar derivación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar turno en agenda": {
+      "main": [
+        [
+          {
+            "node": "¿Turno libre y datos completos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Turno libre y datos completos?": {
+      "main": [
+        [
+          {
+            "node": "Marcar turno pre-reservado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Turno no disponible",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar turno pre-reservado": {
+      "main": [
+        [
+          {
+            "node": "Registrar reserva",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar reserva": {
+      "main": [
+        [
+          {
+            "node": "Respuesta reserva",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta reserva": {
+      "main": [
+        [
+          {
+            "node": "Responder (formato WhatsApp API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Turno no disponible": {
+      "main": [
+        [
+          {
+            "node": "Responder (formato WhatsApp API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar derivación": {
+      "main": [
+        [
+          {
+            "node": "Registrar derivación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar derivación": {
+      "main": [
+        [
+          {
+            "node": "Respuesta derivación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta derivación": {
+      "main": [
+        [
+          {
+            "node": "Responder (formato WhatsApp API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respuesta directa": {
+      "main": [
+        [
+          {
+            "node": "Responder (formato WhatsApp API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Avisar falla al administrador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "PXVnZAr1HQJcPYLn",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "e3884acb-ef52-4b0e-9bdb-64b8afd22b12",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "85f2fcf1ad3affa6bbc7dbf5347d01d54958073acace34e67af78f2a775e35a8"
+  },
+  "nodeGroups": [],
+  "id": "PXVnZAr1HQJcPYLn",
+  "tags": []
+}
